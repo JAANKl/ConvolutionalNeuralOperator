@@ -1,0 +1,3 @@
+- Training validation plot
+- Bogdan fragen theoretischerer Schwerpunkt
+- Fourier plots
