@@ -4,37 +4,44 @@ import os
 import sys
 
 import pandas as pd
+import xarray as xr
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
+from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer, StrakaBubble
 
+print(sys.argv)
 
 
 if len(sys.argv) == 2:
     
     training_properties = {
+        # "learning_rate": 0.001, 
         "learning_rate": 0.001, 
-        "weight_decay": 1e-6,
+        "weight_decay": 1e-7,
         "scheduler_step": 10,
         "scheduler_gamma": 0.98,
-        "epochs": 1000,
+        "epochs": 300,
         "batch_size": 16,
         "exp": 1,                # Do we use L1 or L2 errors? Default: L1
-        "training_samples": 256  # How many training samples?
+        "training_samples": 400  # How many training samples?
     }
     model_architecture_ = {
         
         #Parameters to be chosen with model selection:
-        "N_layers": 3,            # Number of (D) & (U) blocks 
+        # "N_layers": 3,            # Number of (D) & (U) blocks 
+        "N_layers": 7,            # Number of (D) & (U) blocks 
         "channel_multiplier": 32, # Parameter d_e (how the number of channels changes)
-        "N_res": 4,               # Number of (R) blocks in the middle networs.
-        "N_res_neck" : 6,         # Number of (R) blocks in the BN
+        # "channel_multiplier": 64, # Parameter d_e (how the number of channels changes)
+        # "N_res": 4,               # Number of (R) blocks in the middle networs.
+        "N_res": 3,               # Number of (R) blocks in the middle networks.
+        "N_res_neck" : 4,         # Number of (R) blocks in the BN
         
         #Other parameters:
-        "in_size": 64,            # Resolution of the computational grid
+        # "in_size": 64,            # Resolution of the computational grid
+        "in_size": 128,            # Resolution of the computational grid
         "retrain": 4,             # Random seed
         "kernel_size": 3,         # Kernel size.
         "FourierF": 0,            # Number of Fourier Features in the input channels. Default is 0.
@@ -58,12 +65,13 @@ if len(sys.argv) == 2:
     #   shear_layer         : Navier-Stokes equations
     #   airfoil             : Compressible Euler equations
     #   darcy               : Darcy Flow
+    #   straka_bubble       : Straka Bubble
 
     which_example = sys.argv[1]
     #which_example = "shear_layer"
 
     # Save the models here:
-    folder = "TrainedModels/"+"CNO_"+which_example+"_1"
+    folder = "TrainedModels/"+"CNO_"+which_example+"_0_to_900_deep"
         
 else:
     
@@ -111,6 +119,8 @@ elif which_example == "airfoil":
     example = Airfoil(model_architecture_, device, batch_size, training_samples)
 elif which_example == "darcy":
     example = Darcy(model_architecture_, device, batch_size, training_samples)
+elif which_example == "straka_bubble":
+    example = StrakaBubble(model_architecture_, device, batch_size, training_samples)
 else:
     raise ValueError()
     
@@ -148,23 +158,23 @@ for epoch in range(epochs):
         tepoch.set_description(f"Epoch {epoch}")
         train_mse = 0.0
         running_relative_train_mse = 0.0
-        for step, (input_batch, output_batch) in enumerate(train_loader):
-            optimizer.zero_grad()
-            input_batch = input_batch.to(device)
-            output_batch = output_batch.to(device)
+        for step, batch in enumerate(train_loader):
+            for input_batch, output_batch in batch:
+                optimizer.zero_grad()
+                input_batch = input_batch.to(device)
+                output_batch = output_batch.to(device)
+                output_pred_batch = model(input_batch)
 
-            output_pred_batch = model(input_batch)
+                if which_example == "airfoil": #Mask the airfoil shape
+                    output_pred_batch[input_batch==1] = 1
+                    output_batch[input_batch==1] = 1
 
-            if which_example == "airfoil": #Mask the airfoil shape
-                output_pred_batch[input_batch==1] = 1
-                output_batch[input_batch==1] = 1
+                loss_f = loss(output_pred_batch, output_batch) / loss(torch.zeros_like(output_batch).to(device), output_batch) # relative L1 loss
 
-            loss_f = loss(output_pred_batch, output_batch) / loss(torch.zeros_like(output_batch).to(device), output_batch)
-
-            loss_f.backward()
-            optimizer.step()
-            train_mse = train_mse * step / (step + 1) + loss_f.item() / (step + 1)
-            tepoch.set_postfix({'Batch': step + 1, 'Train loss (in progress)': train_mse})
+                loss_f.backward()
+                optimizer.step()
+                train_mse = train_mse * step / (step + 1) + loss_f.item() / (step + 1)
+                tepoch.set_postfix({'Batch': step + 1, 'Train loss (in progress)': train_mse})
 
         writer.add_scalar("train_loss/train_loss", train_mse, epoch)
         
@@ -173,31 +183,32 @@ for epoch in range(epochs):
             test_relative_l2 = 0.0
             train_relative_l2 = 0.0
             
-            for step, (input_batch, output_batch) in enumerate(val_loader):
-                
-                input_batch = input_batch.to(device)
-                output_batch = output_batch.to(device)
-                output_pred_batch = model(input_batch)
-                
-                if which_example == "airfoil": #Mask the airfoil shape
-                    output_pred_batch[input_batch==1] = 1
-                    output_batch[input_batch==1] = 1
-                
-                loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
-                test_relative_l2 += loss_f.item()
-            test_relative_l2 /= len(val_loader)
+            for step, batch in enumerate(val_loader):
+                for input_batch, output_batch in batch:
+                    input_batch = input_batch.to(device)
+                    output_batch = output_batch.to(device)
+                    output_pred_batch = model(input_batch)
 
-            for step, (input_batch, output_batch) in enumerate(train_loader):
-                input_batch = input_batch.to(device)
-                output_batch = output_batch.to(device)
-                output_pred_batch = model(input_batch)
-                    
-                if which_example == "airfoil": #Mask the airfoil shape
-                    output_pred_batch[input_batch==1] = 1
-                    output_batch[input_batch==1] = 1
+                    if which_example == "airfoil": #Mask the airfoil shape
+                        output_pred_batch[input_batch==1] = 1
+                        output_batch[input_batch==1] = 1
 
                     loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
-                    train_relative_l2 += loss_f.item()
+                    test_relative_l2 += loss_f.item()
+            test_relative_l2 /= len(val_loader)
+
+            for step, batch in enumerate(train_loader):
+                for input_batch, output_batch in batch:
+                    input_batch = input_batch.to(device)
+                    output_batch = output_batch.to(device)
+                    output_pred_batch = model(input_batch)
+
+                    if which_example == "airfoil": #Mask the airfoil shape
+                        output_pred_batch[input_batch==1] = 1
+                        output_batch[input_batch==1] = 1
+
+                        loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
+                        train_relative_l2 += loss_f.item()
             train_relative_l2 /= len(train_loader)
             
             writer.add_scalar("train_loss/train_loss_rel", train_relative_l2, epoch)
