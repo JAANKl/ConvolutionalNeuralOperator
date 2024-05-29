@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 from FNOModules import FNO2d
+from CNOModule import CNO
 from training.FourierFeatures import FourierFeatures
 
 from torch.utils.data import Dataset
@@ -42,7 +43,7 @@ def downsample(u, N):
 
 # For Straka Bubble:
 
-def resize_and_downsample(u, original_shape=(512, 128), target_shape=(128, 128)):
+def resize_and_downsample(u, original_shape=(512, 128), target_shape=(256, 256)):
     """
     Resize and downsample the input tensor to a new shape using bilinear interpolation.
     Args:
@@ -68,6 +69,14 @@ def resize_and_downsample(u, original_shape=(512, 128), target_shape=(128, 128))
     resized_u = resized_u.squeeze(0).squeeze(0)
     
     return resized_u
+
+
+def normalize_data(inputs, labels):
+    for i in [0,1,4]:
+        inputs[i, :, :] = (inputs[i, :, :] - inputs[i, :, :].min())/(inputs[i, :, :].max() - inputs[i, :, :].min())
+    labels = (labels - labels.min())/(labels.max() - labels.min())
+    
+    return inputs, labels
 
 #------------------------------------------------------------------------------
 
@@ -137,11 +146,23 @@ def default_param_CNO(network_properties):
 
 
 class StrakaBubbleDataset(Dataset):
-    def __init__(self, which, training_samples, model_type, dt):
+    def __init__(self, which, training_samples, model_type, dt, normalize=True):
         
         self.dt = dt
         self.max_time = 900
         self.model_type = model_type
+        self.normalize = normalize
+        self.min_data = -28.0
+        self.max_data = 0.0
+        self.min_x = 0.0
+        self.max_x = 25575.0
+        self.min_z = 0.0
+        self.max_z = 6400.0
+        self.min_viscosity = 0.029050784477663294
+        self.max_viscosity = 74.91834790806836
+        self.min_diffusivity = 0.043989764422611155
+        self.max_diffusivity = 74.8587964361266
+        self.resolution = 256
         #The file:
         
         self.file_data = "/cluster/work/math/camlab-data/data_dana/4-Straka_vdIC_uvDT_timeseries_1024samples/samples/data/sample_"
@@ -188,15 +209,23 @@ class StrakaBubbleDataset(Dataset):
             labels = torch.tensor(temp_values_t_out, dtype=torch.float32)
 
 
-            # Resize and downsample
-            inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (128, 128)) for i in range(inputs.shape[0])])
-            labels = resize_and_downsample(labels.squeeze(0), (512, 128), (128, 128))
+            # Resize and downsample TODO: go to 256x256
+            inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (self.resolution, self.resolution)) for i in range(inputs.shape[0])])
+            labels = resize_and_downsample(labels.squeeze(0), (512, 128), (self.resolution, self.resolution)) 
 
             # Normalising
-            inputs = (inputs - temp_values_t_in.min())/(temp_values_t_in.max() - temp_values_t_in.min())
-            # inputs = (inputs - temp_values_t0.mean())/temp_values_t0.std()
-            labels = (labels - temp_values_t_out.min())/(temp_values_t_out.max() - temp_values_t_out.min())
-            # labels = (labels - temp_values_t300.mean())/temp_values_t300.std()
+            if self.normalize:
+                
+                # inputs = (inputs - self.min_data)/(self.max_data - self.min_data)
+                # labels = (labels - self.min_data)/(self.max_data - self.min_data)
+                
+                
+                inputs[0, :, :] = (inputs[0, :, :] - self.min_x)/(self.max_x - self.min_x)
+                inputs[1, :, :] = (inputs[1, :, :] - self.min_z)/(self.max_z - self.min_z)
+                inputs[2, :, :] = (inputs[2, :, :] - self.min_viscosity)/(self.max_viscosity - self.min_viscosity)
+                inputs[3, :, :] = (inputs[3, :, :] - self.min_diffusivity)/(self.max_diffusivity - self.min_diffusivity)
+                inputs[4, :, :] = (inputs[4, :, :] - self.min_data)/(self.max_data - self.min_data)
+                labels = (labels - self.min_data)/(self.max_data - self.min_data)
 
             if self.model_type == "FNO":
                 inputs = inputs.permute(1, 2, 0)
@@ -205,16 +234,19 @@ class StrakaBubbleDataset(Dataset):
                 labels = labels.unsqueeze(0)
             else:
                 raise(NotImplementedError("Only FNO and CNO supported."))
+
             data_pairs.append((inputs, labels))
 
         return data_pairs
     
 class StrakaBubblePlottingDataset(Dataset):
-    def __init__(self, which, training_samples, model_type, t_in=0, t_out=900):
+    def __init__(self, which, training_samples, model_type, t_in=0, t_out=900, normalize=True):
         self.model_type = model_type
         self.t_in = t_in
         self.t_out = t_out
         self.max_time = 900
+        self.normalize = normalize
+        self.resolution = 256
         assert self.t_in in 60 * np.array(range(16))
         assert self.t_out in 60 * np.array(range(16))
         assert self.t_in < self.t_out
@@ -263,14 +295,21 @@ class StrakaBubblePlottingDataset(Dataset):
 
 
         # Resize and downsample
-        inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (128, 128)) for i in range(inputs.shape[0])])
-        labels = resize_and_downsample(labels.squeeze(0), (512, 128), (128, 128))
+        inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (self.resolution, self.resolution)) for i in range(inputs.shape[0])])
+        labels = resize_and_downsample(labels.squeeze(0), (512, 128), (self.resolution, self.resolution))
 
         # Normalising
-        inputs = (inputs - temp_values_t_in.min())/(temp_values_t_in.max() - temp_values_t_in.min())
-        # inputs = (inputs - temp_values_t0.mean())/temp_values_t0.std()
-        labels = (labels - temp_values_t_out.min())/(temp_values_t_out.max() - temp_values_t_out.min())
-        # labels = (labels - temp_values_t300.mean())/temp_values_t300.std()
+        if self.normalize:
+            min_val_in = temp_values_t_in.min()
+            max_val_in = temp_values_t_in.max()
+            min_val_out = temp_values_t_out.min()
+            max_val_out = temp_values_t_out.max()
+            # inputs[-1, :, :] = (inputs[-1, :, :] - min_val_in)/(max_val_in - min_val_in)
+            # TODO: This is wrong!
+            inputs = (inputs - min_val_in)/(max_val_in - min_val_in)
+            # inputs = (inputs - temp_values_t0.mean())/temp_values_t0.std()
+            labels = (labels - min_val_out)/(max_val_out - min_val_out)
+            # labels = (labels - temp_values_t300.mean())/temp_values_t300.std()
 
         if self.model_type == "FNO":
             inputs = inputs.permute(1, 2, 0)
@@ -285,7 +324,7 @@ class StrakaBubblePlottingDataset(Dataset):
     
     
 class StrakaBubble:
-    def __init__(self, network_properties, device, batch_size, training_samples, in_dist = True, model_type="FNO", all_dt=True, t_in=0, t_out=900, dt=60):
+    def __init__(self, network_properties, device, batch_size, training_samples, model_type, in_dist = True, all_dt=True, t_in=0, t_out=900, dt=60):
         
         if model_type == "FNO":
         

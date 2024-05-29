@@ -8,7 +8,16 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from Problems.FNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer, StrakaBubble
+from Problems.FNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
+from Dataloaders import StrakaBubble
+
+# FNO Strakabubble training parameters:
+
+all_dt = True
+t_in=0
+t_out=900 
+dt=60
+
 
 if len(sys.argv) == 2:
 
@@ -18,9 +27,9 @@ if len(sys.argv) == 2:
         "scheduler_step": 0.97,
         "scheduler_gamma": 10,
         "epochs": 300,
-        "batch_size": 16,
+        "batch_size": 32,
         "exp": 1,
-        "training_samples": 256,
+        "training_samples": 1000-256,
     }
     fno_architecture_ = {
         "width": 32,
@@ -47,7 +56,7 @@ if len(sys.argv) == 2:
     #which_example = "shear_layer"
 
     # Save the models here:
-    folder = "TrainedModels/"+"FNO_"+which_example+"_test_dt"
+    folder = "TrainedModels/"+"FNO_"+which_example+"_dt_60_normalized_everywhere"
 
 else:
     folder = sys.argv[1]
@@ -89,7 +98,7 @@ elif which_example == "shear_layer_smooth":
 elif which_example == "darcy":
     example = Darcy(fno_architecture_, device, batch_size,training_samples)
 elif which_example == "straka_bubble":
-    example = StrakaBubble(fno_architecture_, device, batch_size, training_samples)
+    example = StrakaBubble(fno_architecture_, device, batch_size, training_samples, model_type="FNO", all_dt=all_dt, t_in=t_in, t_out=t_out, dt=dt)
 else:
     raise ValueError("the variable which_example has to be one between darcy")
 

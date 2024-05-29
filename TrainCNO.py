@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import sys
+import csv
 
 import pandas as pd
 import xarray as xr
@@ -10,9 +11,18 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer, StrakaBubble
+from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
+from Dataloaders import StrakaBubble
+from Neuralop_Losses import H1Loss
 
 print(sys.argv)
+
+# CNO Strakabubble training parameters:
+
+all_dt = True
+t_in=0
+t_out=900 
+dt=60
 
 
 if len(sys.argv) == 2:
@@ -24,24 +34,24 @@ if len(sys.argv) == 2:
         "scheduler_step": 10,
         "scheduler_gamma": 0.98,
         "epochs": 300,
-        "batch_size": 16,
-        "exp": 1,                # Do we use L1 or L2 errors? Default: L1
-        "training_samples": 400  # How many training samples?
+        "batch_size": 32,
+        "exp": 2.1,                # Do we use L1 or L2 errors? Default: L1. L1:1, L2:2, H1:2.1
+        "training_samples": 1024-256  # How many training samples?
     }
     model_architecture_ = {
         
         #Parameters to be chosen with model selection:
         # "N_layers": 3,            # Number of (D) & (U) blocks 
-        "N_layers": 7,            # Number of (D) & (U) blocks 
+        "N_layers": 3,            # Number of (D) & (U) blocks 
         "channel_multiplier": 32, # Parameter d_e (how the number of channels changes)
         # "channel_multiplier": 64, # Parameter d_e (how the number of channels changes)
         # "N_res": 4,               # Number of (R) blocks in the middle networs.
-        "N_res": 3,               # Number of (R) blocks in the middle networks.
-        "N_res_neck" : 4,         # Number of (R) blocks in the BN
+        "N_res": 4,               # Number of (R) blocks in the middle networks.
+        "N_res_neck" : 6,         # Number of (R) blocks in the BN
         
         #Other parameters:
         # "in_size": 64,            # Resolution of the computational grid
-        "in_size": 128,            # Resolution of the computational grid
+        "in_size": 256,            # Resolution of the computational grid TODO: change 256
         "retrain": 4,             # Random seed
         "kernel_size": 3,         # Kernel size.
         "FourierF": 0,            # Number of Fourier Features in the input channels. Default is 0.
@@ -71,7 +81,7 @@ if len(sys.argv) == 2:
     #which_example = "shear_layer"
 
     # Save the models here:
-    folder = "TrainedModels/"+"CNO_"+which_example+"_0_to_900_deep"
+    folder = "TrainedModels/"+"CNO_"+which_example+"_dt_60_normalized_everywhere"
         
 else:
     
@@ -120,7 +130,7 @@ elif which_example == "airfoil":
 elif which_example == "darcy":
     example = Darcy(model_architecture_, device, batch_size, training_samples)
 elif which_example == "straka_bubble":
-    example = StrakaBubble(model_architecture_, device, batch_size, training_samples)
+    example = StrakaBubble(model_architecture_, device, batch_size, training_samples, model_type="CNO", all_dt=all_dt, t_in=t_in, t_out=t_out, dt=dt)
 else:
     raise ValueError()
     
@@ -138,6 +148,8 @@ if p == 1:
     loss = torch.nn.L1Loss()
 elif p == 2:
     loss = torch.nn.MSELoss()
+elif p == 2.1:
+    loss = H1Loss(d=2, reduce_dims=(0,1))
     
 best_model_testing_error = 1000 #Save the model once it has less than 1000% relative L1 error
 patience = int(0.2 * epochs)    # Early stopping parameter
@@ -149,6 +161,14 @@ if str(device) == 'cpu':
     print("WE SUGGEST YOU TO RUN THE CODE ON A GPU!")
     print("------------------------------------------")
     print(" ")
+
+    
+# Initialize CSV file and writer
+validation_tracking_path = os.path.join(folder, 'validation_tracking.csv')
+with open(validation_tracking_path, mode='w', newline='') as file:
+    validation_writer = csv.writer(file)
+    # Writing the headers of CSV file
+    validation_writer.writerow(['Epoch', 'Training Loss', 'Training Relative Error', 'Validation Relative Error'])
 
 
 for epoch in range(epochs):
@@ -231,6 +251,11 @@ for epoch in range(epochs):
             file.write("Best Testing Error: " + str(best_model_testing_error) + "\n")
             file.write("Current Epoch: " + str(epoch) + "\n")
             file.write("Params: " + str(n_params) + "\n")
+        
+        with open(validation_tracking_path, mode='a', newline='') as file:
+            validation_writer = csv.writer(file)
+            validation_writer.writerow([epoch, train_mse, train_relative_l2, test_relative_l2])
+        
         scheduler.step()
 
     if counter>patience:
