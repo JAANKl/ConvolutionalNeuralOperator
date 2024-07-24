@@ -7,11 +7,11 @@ import csv
 import pandas as pd
 import xarray as xr
 import torch
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
+# from Problems.CNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
 from Dataloaders import StrakaBubble
 from Neuralop_Losses import H1Loss
 
@@ -22,7 +22,7 @@ print(sys.argv)
 all_dt = True
 t_in=0
 t_out=900 
-dt=60
+dt=900
 
 
 if len(sys.argv) == 2:
@@ -33,8 +33,8 @@ if len(sys.argv) == 2:
         "weight_decay": 1e-7,
         "scheduler_step": 10,
         "scheduler_gamma": 0.98,
-        "epochs": 300,
-        "batch_size": 32,
+        "epochs": 1000,
+        "batch_size": 16,
         "exp": 2.1,                # Do we use L1 or L2 errors? Default: L1. L1:1, L2:2, H1:2.1
         "training_samples": 1024-256  # How many training samples?
     }
@@ -42,12 +42,12 @@ if len(sys.argv) == 2:
         
         #Parameters to be chosen with model selection:
         # "N_layers": 3,            # Number of (D) & (U) blocks 
-        "N_layers": 3,            # Number of (D) & (U) blocks 
+        "N_layers": 5,            # Number of (D) & (U) blocks 
+        # "channel_multiplier": 32, # Parameter d_e (how the number of channels changes)
         "channel_multiplier": 32, # Parameter d_e (how the number of channels changes)
-        # "channel_multiplier": 64, # Parameter d_e (how the number of channels changes)
         # "N_res": 4,               # Number of (R) blocks in the middle networs.
-        "N_res": 4,               # Number of (R) blocks in the middle networks.
-        "N_res_neck" : 6,         # Number of (R) blocks in the BN
+        "N_res": 2,               # Number of (R) blocks in the middle networks.
+        "N_res_neck" : 4,         # Number of (R) blocks in the BN
         
         #Other parameters:
         # "in_size": 64,            # Resolution of the computational grid
@@ -66,22 +66,12 @@ if len(sys.argv) == 2:
     }
     
     #   "which_example" can be 
-    
-    #   poisson             : Poisson equation 
-    #   wave_0_5            : Wave equation
-    #   cont_tran           : Smooth Transport
-    #   disc_tran           : Discontinuous Transport
-    #   allen               : Allen-Cahn equation
-    #   shear_layer         : Navier-Stokes equations
-    #   airfoil             : Compressible Euler equations
-    #   darcy               : Darcy Flow
     #   straka_bubble       : Straka Bubble
 
     which_example = sys.argv[1]
-    #which_example = "shear_layer"
 
     # Save the models here:
-    folder = "TrainedModels/"+"CNO_"+which_example+"_dt_60_normalized_everywhere"
+    folder = "TrainedModels/"+"CNO_"+which_example+"_0_to_900_no"
         
 else:
     
@@ -92,7 +82,7 @@ else:
     which_example = sys.argv[4]
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-writer = SummaryWriter(log_dir=folder) #usage of TensorBoard
+# writer = SummaryWriter(log_dir=folder) #usage of TensorBoard
 
 learning_rate = training_properties["learning_rate"]
 epochs = training_properties["epochs"]
@@ -112,24 +102,7 @@ df.to_csv(folder + '/training_properties.txt', header=False, index=True, mode='w
 df = pd.DataFrame.from_dict([model_architecture_]).T
 df.to_csv(folder + '/net_architecture.txt', header=False, index=True, mode='w')
 
-if which_example == "shear_layer":
-    example = ShearLayer(model_architecture_, device, batch_size, training_samples, size = 64)
-elif which_example == "poisson":
-    example = SinFrequency(model_architecture_, device, batch_size, training_samples)
-elif which_example == "wave_0_5":
-    example = WaveEquation(model_architecture_, device, batch_size, training_samples)
-elif which_example == "allen":
-    example = AllenCahn(model_architecture_, device, batch_size, training_samples)
-elif which_example == "cont_tran":
-    example = ContTranslation(model_architecture_, device, batch_size, training_samples)
-elif which_example == "disc_tran":
-    example = DiscContTranslation(model_architecture_, device, batch_size, training_samples)
-elif which_example == "airfoil":
-    model_architecture_["in_size"] = 128
-    example = Airfoil(model_architecture_, device, batch_size, training_samples)
-elif which_example == "darcy":
-    example = Darcy(model_architecture_, device, batch_size, training_samples)
-elif which_example == "straka_bubble":
+if which_example == "straka_bubble":
     example = StrakaBubble(model_architecture_, device, batch_size, training_samples, model_type="CNO", all_dt=all_dt, t_in=t_in, t_out=t_out, dt=dt)
 else:
     raise ValueError()
@@ -163,12 +136,18 @@ if str(device) == 'cpu':
     print(" ")
 
     
-# Initialize CSV file and writer
-validation_tracking_path = os.path.join(folder, 'validation_tracking.csv')
-with open(validation_tracking_path, mode='w', newline='') as file:
-    validation_writer = csv.writer(file)
-    # Writing the headers of CSV file
-    validation_writer.writerow(['Epoch', 'Training Loss', 'Training Relative Error', 'Validation Relative Error'])
+# Initialize CSV file and writer for training and validation losses
+# train_loss_path = os.path.join(folder, 'train_losses.csv')
+val_loss_path = os.path.join(folder, 'val_losses.csv')
+
+# with open(train_loss_path, mode='w', newline='') as file:
+#     train_writer = csv.writer(file)
+#     train_writer.writerow(['Epoch', 'Batch', 'Train Loss'])
+
+with open(val_loss_path, mode='w', newline='') as file:
+    val_writer = csv.writer(file)
+    val_writer.writerow(['Epoch', 'Validation Loss', 'Train Relative L2 Error', 'Validation Relative L2 Error'])
+
 
 
 for epoch in range(epochs):
@@ -176,8 +155,7 @@ for epoch in range(epochs):
         
         model.train()
         tepoch.set_description(f"Epoch {epoch}")
-        train_mse = 0.0
-        running_relative_train_mse = 0.0
+        train_loss_avg = 0.0
         for step, batch in enumerate(train_loader):
             for input_batch, output_batch in batch:
                 optimizer.zero_grad()
@@ -185,18 +163,17 @@ for epoch in range(epochs):
                 output_batch = output_batch.to(device)
                 output_pred_batch = model(input_batch)
 
-                if which_example == "airfoil": #Mask the airfoil shape
-                    output_pred_batch[input_batch==1] = 1
-                    output_batch[input_batch==1] = 1
-
                 loss_f = loss(output_pred_batch, output_batch) / loss(torch.zeros_like(output_batch).to(device), output_batch) # relative L1 loss
 
                 loss_f.backward()
                 optimizer.step()
-                train_mse = train_mse * step / (step + 1) + loss_f.item() / (step + 1)
-                tepoch.set_postfix({'Batch': step + 1, 'Train loss (in progress)': train_mse})
+                train_loss_avg = train_loss_avg * step / (step + 1) + loss_f.item() / (step + 1)
+                tepoch.set_postfix({'Batch': step + 1, 'Train loss (in progress)': train_loss_avg})
 
-        writer.add_scalar("train_loss/train_loss", train_mse, epoch)
+                # with open(train_loss_path, mode='a', newline='') as file:
+                #     train_writer = csv.writer(file)
+                #     train_writer.writerow([epoch, step, train_loss_avg])
+        # writer.add_scalar("train_loss/train_loss", train_loss_avg, epoch)
         
         with torch.no_grad():
             model.eval()
@@ -209,10 +186,6 @@ for epoch in range(epochs):
                     output_batch = output_batch.to(device)
                     output_pred_batch = model(input_batch)
 
-                    if which_example == "airfoil": #Mask the airfoil shape
-                        output_pred_batch[input_batch==1] = 1
-                        output_batch[input_batch==1] = 1
-
                     loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
                     test_relative_l2 += loss_f.item()
             test_relative_l2 /= len(val_loader)
@@ -223,38 +196,34 @@ for epoch in range(epochs):
                     output_batch = output_batch.to(device)
                     output_pred_batch = model(input_batch)
 
-                    if which_example == "airfoil": #Mask the airfoil shape
-                        output_pred_batch[input_batch==1] = 1
-                        output_batch[input_batch==1] = 1
-
-                        loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
-                        train_relative_l2 += loss_f.item()
+                    loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
+                    train_relative_l2 += loss_f.item()
             train_relative_l2 /= len(train_loader)
+
+            with open(val_loss_path, mode='a', newline='') as file:
+                val_writer = csv.writer(file)
+                val_writer.writerow([epoch, test_relative_l2, train_relative_l2, test_relative_l2])
             
-            writer.add_scalar("train_loss/train_loss_rel", train_relative_l2, epoch)
-            writer.add_scalar("val_loss/val_loss", test_relative_l2, epoch)
+            # writer.add_scalar("train_loss/train_loss_rel", train_relative_l2, epoch)
+            # writer.add_scalar("val_loss/val_loss", test_relative_l2, epoch)
 
             if test_relative_l2 < best_model_testing_error:
                 best_model_testing_error = test_relative_l2
                 best_model = copy.deepcopy(model)
                 torch.save(best_model, folder + "/model.pkl")
-                writer.add_scalar("val_loss/Best Relative Testing Error", best_model_testing_error, epoch)
+                # writer.add_scalar("val_loss/Best Relative Testing Error", best_model_testing_error, epoch)
                 counter = 0
             else:
                 counter+=1
 
-        tepoch.set_postfix({'Train loss': train_mse, "Relative Train": train_relative_l2, "Relative Val loss": test_relative_l2})
+        tepoch.set_postfix({'Train loss': train_loss_avg, "Relative Train": train_relative_l2, "Relative Val loss": test_relative_l2})
         tepoch.close()
 
         with open(folder + '/errors.txt', 'w') as file:
-            file.write("Training Error: " + str(train_mse) + "\n")
+            file.write("Training Error: " + str(train_loss_avg) + "\n")
             file.write("Best Testing Error: " + str(best_model_testing_error) + "\n")
             file.write("Current Epoch: " + str(epoch) + "\n")
             file.write("Params: " + str(n_params) + "\n")
-        
-        with open(validation_tracking_path, mode='a', newline='') as file:
-            validation_writer = csv.writer(file)
-            validation_writer.writerow([epoch, train_mse, train_relative_l2, test_relative_l2])
         
         scheduler.step()
 

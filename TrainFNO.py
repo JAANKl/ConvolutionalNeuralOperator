@@ -5,10 +5,10 @@ import sys
 
 import pandas as pd
 import torch
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from Problems.FNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
+# from Problems.FNOBenchmarks import Darcy, Airfoil, DiscContTranslation, ContTranslation, AllenCahn, SinFrequency, WaveEquation, ShearLayer
 from Dataloaders import StrakaBubble
 
 # FNO Strakabubble training parameters:
@@ -16,7 +16,7 @@ from Dataloaders import StrakaBubble
 all_dt = True
 t_in=0
 t_out=900 
-dt=60
+dt=900
 
 
 if len(sys.argv) == 2:
@@ -56,7 +56,7 @@ if len(sys.argv) == 2:
     #which_example = "shear_layer"
 
     # Save the models here:
-    folder = "TrainedModels/"+"FNO_"+which_example+"_dt_60_normalized_everywhere"
+    folder = "TrainedModels/"+"FNO_"+which_example+"_0_to_900_final"
 
 else:
     folder = sys.argv[1]
@@ -77,27 +77,7 @@ scheduler_gamma = training_properties["scheduler_gamma"]
 training_samples = training_properties["training_samples"]
 p = training_properties["exp"]
 
-
-if which_example == "shear_layer":
-    example = ShearLayer(fno_architecture_, device, batch_size, training_samples)
-elif which_example == "poisson":
-    example = SinFrequency(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "wave_0_5":
-    example = WaveEquation(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "allen":
-    example = AllenCahn(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "cont_tran":
-    example = ContTranslation(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "disc_tran":
-    example = DiscContTranslation(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "airfoil":
-    example = Airfoil(fno_architecture_, device, batch_size, training_samples)
-elif which_example == "shear_layer_smooth":
-    example = ShearLayerSmooth(fno_architecture_, device, batch_size, training_samples)
-
-elif which_example == "darcy":
-    example = Darcy(fno_architecture_, device, batch_size,training_samples)
-elif which_example == "straka_bubble":
+if which_example == "straka_bubble":
     example = StrakaBubble(fno_architecture_, device, batch_size, training_samples, model_type="FNO", all_dt=all_dt, t_in=t_in, t_out=t_out, dt=dt)
 else:
     raise ValueError("the variable which_example has to be one between darcy")
@@ -118,6 +98,18 @@ test_loader = example.val_loader
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=scheduler_step, gamma=scheduler_gamma)
+
+# Initialize CSV file and writer for training and validation losses
+# train_loss_path = os.path.join(folder, 'train_losses.csv')
+val_loss_path = os.path.join(folder, 'val_losses.csv')
+
+# with open(train_loss_path, mode='w', newline='') as file:
+#     train_writer = csv.writer(file)
+#     train_writer.writerow(['Epoch', 'Batch', 'Train Loss'])
+
+with open(val_loss_path, mode='w', newline='') as file:
+    val_writer = csv.writer(file)
+    val_writer.writerow(['Epoch', 'Validation Loss', 'Train Relative L2 Error', 'Validation Relative L2 Error'])
 
 freq_print = 1
 if p == 1:
@@ -140,18 +132,17 @@ for epoch in range(epochs):
                 output_batch = output_batch.to(device)
                 output_pred_batch = model(input_batch)
 
-                if which_example == "airfoil":
-                    output_pred_batch[input_batch==1] = 1
-                    output_batch[input_batch==1] = 1
-
                 loss_f = loss(output_pred_batch, output_batch) / loss(torch.zeros_like(output_batch).to(device), output_batch)
 
                 loss_f.backward()
                 optimizer.step()
                 train_mse = train_mse * step / (step + 1) + loss_f.item() / (step + 1)
                 tepoch.set_postfix({'Batch': step + 1, 'Train loss (in progress)': train_mse})
-                        
-        writer.add_scalar("train_loss/train_loss", train_mse, epoch)
+
+                # with open(train_loss_path, mode='a', newline='') as file:
+                #     train_writer = csv.writer(file)
+                #     train_writer.writerow([epoch, step, train_mse])
+        # writer.add_scalar("train_loss/train_loss", train_mse, epoch)
 
         with torch.no_grad():
             model.eval()
@@ -164,10 +155,6 @@ for epoch in range(epochs):
                     output_batch = output_batch.to(device)
                     output_pred_batch = model(input_batch)
 
-                    if which_example == "airfoil":
-                        output_pred_batch[input_batch==1] = 1
-                        output_batch[input_batch==1] = 1
-
                     loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
                     test_relative_l2 += loss_f.item()
             test_relative_l2 /= len(test_loader)
@@ -177,17 +164,18 @@ for epoch in range(epochs):
                     input_batch = input_batch.to(device)
                     output_batch = output_batch.to(device)
                     output_pred_batch = model(input_batch)
-                    
-                    if which_example == "airfoil":
-                        output_pred_batch[input_batch==1] = 1
-                        output_batch[input_batch==1] = 1
+                
                     
                     loss_f = torch.mean(abs(output_pred_batch - output_batch)) / torch.mean(abs(output_batch)) * 100
                     train_relative_l2 += loss_f.item()
             train_relative_l2 /= len(train_loader)
-            
-            writer.add_scalar("train_loss/train_loss_rel", train_relative_l2, epoch)
-            writer.add_scalar("val_loss/val_loss", test_relative_l2, epoch)
+
+             with open(val_loss_path, mode='a', newline='') as file:
+                val_writer = csv.writer(file)
+                val_writer.writerow([epoch, test_relative_l2, train_relative_l2, test_relative_l2])
+
+            # writer.add_scalar("train_loss/train_loss_rel", train_relative_l2, epoch)
+            # writer.add_scalar("val_loss/val_loss", test_relative_l2, epoch)
 
             if test_relative_l2 < best_model_testing_error:
                 best_model_testing_error = test_relative_l2

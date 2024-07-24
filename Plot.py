@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 from random import randint
-import h5py
 import pickle
 
 from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset, normalize_data
@@ -30,6 +29,8 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                 for inputs, outputs in batch:
                     inputs, outputs = inputs.to(device), outputs.to(device)
                     
+                    plot_error = False
+                    
                     if model_type == "FNO":
                         inputs = inputs.permute(0,3,1,2)
                         outputs = outputs.permute(0,3,1,2)
@@ -50,7 +51,7 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                     inputs[0, 2, :, :] = (inputs[0, 2, :, :] - min_viscosity)/(max_viscosity - min_viscosity)
                     inputs[0, 3, :, :] = (inputs[0, 3, :, :] - min_diffusivity)/(max_diffusivity - min_diffusivity)
                     inputs[0, 4, :, :] = (inputs[0, 4, :, :] - min_data)/(max_data - min_data)
-                    outputs = (outputs - min_data)/(max_data - min_data)
+                    # outputs = (outputs - min_data)/(max_data - min_data)
                     
                     # For old models:
                     # min_val_in = temp_values_t_in.min()
@@ -130,9 +131,13 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                         axes[0].set_ylabel('k_z')
                         fig.colorbar(sc1, ax=axes[0])
 
-                        # Prediction temperature distribution
-                        sc2 = axes[1].imshow(predictions_fft, cmap='hot', interpolation='nearest', extent=[-nx//2, nx//2, -nz//2, nz//2])
-                        axes[1].set_title("FFT of Predicted Temperatures " + model_type)
+                        if plot_error:
+                            sc2 = axes[1].imshow(temp_out_fft - predictions_fft, cmap='hot', interpolation='nearest', extent=[-nx//2, nx//2, -nz//2, nz//2])
+                            axes[1].set_title("FFT of Error " + model_type)
+                        else:
+                            # Prediction temperature distribution
+                            sc2 = axes[1].imshow(predictions_fft, cmap='hot', interpolation='nearest', extent=[-nx//2, nx//2, -nz//2, nz//2])
+                            axes[1].set_title("FFT of Predicted Temperatures " + model_type)
                         axes[1].set_xlabel('k_x')
                         axes[1].set_ylabel('k_z')
                         fig.colorbar(sc2, ax=axes[1])
@@ -150,22 +155,29 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                         
                         
                     else:
+
+                        nx, nz = len(np.unique(x_coords)), len(np.unique(z_coords))
+
                         # Input temperature distribution
-                        sc1 = axes[0].scatter(x_coords, z_coords, c=temp_values_t_in, cmap=cmap, s=13)
+                        sc1 = axes[0].imshow(temp_values_t_in.reshape(nx, nz).T, cmap=cmap, interpolation='nearest', origin="lower")
                         axes[0].set_title("Input Temperatures")
                         axes[0].set_xlabel('X coordinate')
                         axes[0].set_ylabel('Z coordinate')
                         fig.colorbar(sc1, ax=axes[0])
-
-                        # Prediction temperature distribution
-                        sc2 = axes[1].scatter(x_coords, z_coords, c=predictions, cmap=cmap, s=13)
-                        axes[1].set_title("Predicted Temperatures " + model_type)
+                        
+                        if plot_error:
+                            sc2 = axes[1].imshow(temp_values_t_out.reshape(nx, nz).T - predictions.reshape(nx, nz).T, cmap=cmap, interpolation='nearest', origin="lower")
+                            axes[1].set_title("Error " + model_type)
+                        else:
+                            # Prediction temperature distribution
+                            sc2 = axes[1].imshow(predictions.reshape(nx, nz).T, cmap=cmap, interpolation='nearest', origin="lower")
+                            axes[1].set_title("Predicted Temperatures " + model_type)
                         axes[1].set_xlabel('X coordinate')
                         axes[1].set_ylabel('Z coordinate')
                         fig.colorbar(sc2, ax=axes[1])
 
                         # Output temperature distribution
-                        sc3 = axes[2].scatter(x_coords, z_coords, c=temp_values_t_out, cmap=cmap, s=13)
+                        sc3 = axes[2].imshow(temp_values_t_out.reshape(nx, nz).T, cmap=cmap, interpolation='nearest', origin="lower")
                         axes[2].set_title("Ground Truth Temperatures")
                         axes[2].set_xlabel('X coordinate')
                         axes[2].set_ylabel('Z coordinate')
@@ -174,6 +186,36 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                         plt.tight_layout()
                         plt.show()
                         plt.savefig('test_output_plot.png')
+                        
+                        # # deprecated scatterplots:
+                        # # Input temperature distribution
+                        # sc1 = axes[0].scatter(x_coords, z_coords, c=temp_values_t_in, cmap=cmap, s=13)
+                        # axes[0].set_title("Input Temperatures")
+                        # axes[0].set_xlabel('X coordinate')
+                        # axes[0].set_ylabel('Z coordinate')
+                        # fig.colorbar(sc1, ax=axes[0])
+                        
+                        # if plot_error:
+                        #     sc2 = axes[1].scatter(x_coords, z_coords, c=temp_values_t_out - predictions, cmap=cmap, s=13)
+                        #     axes[1].set_title("Error " + model_type)
+                        # else:
+                        #     # Prediction temperature distribution
+                        #     sc2 = axes[1].scatter(x_coords, z_coords, c=predictions, cmap=cmap, s=13)
+                        #     axes[1].set_title("Predicted Temperatures " + model_type)
+                        # axes[1].set_xlabel('X coordinate')
+                        # axes[1].set_ylabel('Z coordinate')
+                        # fig.colorbar(sc2, ax=axes[1])
+
+                        # # Output temperature distribution
+                        # sc3 = axes[2].scatter(x_coords, z_coords, c=temp_values_t_out, cmap=cmap, s=13)
+                        # axes[2].set_title("Ground Truth Temperatures")
+                        # axes[2].set_xlabel('X coordinate')
+                        # axes[2].set_ylabel('Z coordinate')
+                        # fig.colorbar(sc3, ax=axes[2])
+
+                        # plt.tight_layout()
+                        # plt.show()
+                        # plt.savefig('test_output_plot.png')
                     break
                 print("Finished plotting batch", n)
                 break
@@ -181,7 +223,7 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                     
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_normalized_everywhere/model.pkl'
+model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
 # model_path = 'TrainedModels/FNO_straka_bubble_dt_60_normalized_everywhere/model.pkl'
 model_type = model_path.split('TrainedModels/')[1][:3]
 model = torch.load(model_path, map_location=torch.device(device))
@@ -194,8 +236,8 @@ do_fft = False
 
 
 if autoreg:
-    test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type=model_type, t_in=t_in, t_out=t_out, normalize=False), batch_size=1, shuffle=False)
+    test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type=model_type, t_in=t_in, t_out=t_out), batch_size=1, shuffle=False)
 else:
     test_loader = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type=model_type, dt=dt, normalize=False), batch_size=1, shuffle=False)
 
-plot_samples(test_loader, model, n=0, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg)
+plot_samples(test_loader, model, n=2, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg)

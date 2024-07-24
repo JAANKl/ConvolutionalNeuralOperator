@@ -1,6 +1,5 @@
 import random
 
-import h5py
 import numpy as np
 import torch
 import xarray as xr
@@ -240,12 +239,12 @@ class StrakaBubbleDataset(Dataset):
         return data_pairs
     
 class StrakaBubblePlottingDataset(Dataset):
-    def __init__(self, which, training_samples, model_type, t_in=0, t_out=900, normalize=True):
+    def __init__(self, which, training_samples, model_type, t_in=0, t_out=900):
         self.model_type = model_type
         self.t_in = t_in
         self.t_out = t_out
         self.max_time = 900
-        self.normalize = normalize
+        # self.normalize = normalize
         self.resolution = 256
         assert self.t_in in 60 * np.array(range(16))
         assert self.t_out in 60 * np.array(range(16))
@@ -298,18 +297,18 @@ class StrakaBubblePlottingDataset(Dataset):
         inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (self.resolution, self.resolution)) for i in range(inputs.shape[0])])
         labels = resize_and_downsample(labels.squeeze(0), (512, 128), (self.resolution, self.resolution))
 
-        # Normalising
-        if self.normalize:
-            min_val_in = temp_values_t_in.min()
-            max_val_in = temp_values_t_in.max()
-            min_val_out = temp_values_t_out.min()
-            max_val_out = temp_values_t_out.max()
-            # inputs[-1, :, :] = (inputs[-1, :, :] - min_val_in)/(max_val_in - min_val_in)
-            # TODO: This is wrong!
-            inputs = (inputs - min_val_in)/(max_val_in - min_val_in)
-            # inputs = (inputs - temp_values_t0.mean())/temp_values_t0.std()
-            labels = (labels - min_val_out)/(max_val_out - min_val_out)
-            # labels = (labels - temp_values_t300.mean())/temp_values_t300.std()
+        # # Normalising
+        # if self.normalize:
+        #     min_val_in = temp_values_t_in.min()
+        #     max_val_in = temp_values_t_in.max()
+        #     min_val_out = temp_values_t_out.min()
+        #     max_val_out = temp_values_t_out.max()
+        #     # inputs[-1, :, :] = (inputs[-1, :, :] - min_val_in)/(max_val_in - min_val_in)
+        #     # TODO: This is wrong!
+        #     inputs = (inputs - min_val_in)/(max_val_in - min_val_in)
+        #     # inputs = (inputs - temp_values_t0.mean())/temp_values_t0.std()
+        #     labels = (labels - min_val_out)/(max_val_out - min_val_out)
+        #     # labels = (labels - temp_values_t300.mean())/temp_values_t300.std()
 
         if self.model_type == "FNO":
             inputs = inputs.permute(1, 2, 0)
@@ -410,12 +409,21 @@ class StrakaBubble:
 
         #Change number of workers according to your preference
         num_workers = 0
-        
+
         if all_dt:
-            self.train_loader = DataLoader(StrakaBubbleDataset("training", training_samples, model_type, dt), batch_size=batch_size, shuffle=True, num_workers=8)
-            self.val_loader = DataLoader(StrakaBubbleDataset("validation", training_samples, model_type, dt), batch_size=batch_size, shuffle=False, num_workers=8)
-            self.test_loader = DataLoader(StrakaBubbleDataset("test", training_samples, model_type, dt), batch_size=batch_size, shuffle=False, num_workers=num_workers)
+            self.train_loader = DataLoader(StrakaBubbleDataset("training", training_samples, model_type, dt), batch_size=batch_size, shuffle=True)
+            self.val_loader = DataLoader(StrakaBubbleDataset("validation", training_samples, model_type, dt), batch_size=batch_size, shuffle=False)
+            self.test_loader = DataLoader(StrakaBubbleDataset("test", training_samples, model_type, dt), batch_size=batch_size, shuffle=False)
         else:
-            self.train_loader = DataLoader(StrakaBubblePlottingDataset("training", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=True, num_workers=num_workers)
-            self.val_loader = DataLoader(StrakaBubblePlottingDataset("validation", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False, num_workers=num_workers)
-            self.test_loader = DataLoader(StrakaBubblePlottingDataset("test", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False, num_workers=num_workers)
+            self.train_loader = DataLoader(StrakaBubblePlottingDataset("training", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=True)
+            self.val_loader = DataLoader(StrakaBubblePlottingDataset("validation", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False)
+            self.test_loader = DataLoader(StrakaBubblePlottingDataset("test", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False)
+        
+        # if all_dt:
+        #     self.train_loader = DataLoader(StrakaBubbleDataset("training", training_samples, model_type, dt), batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        #     self.val_loader = DataLoader(StrakaBubbleDataset("validation", training_samples, model_type, dt), batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        #     self.test_loader = DataLoader(StrakaBubbleDataset("test", training_samples, model_type, dt), batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        # else:
+        #     self.train_loader = DataLoader(StrakaBubblePlottingDataset("training", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        #     self.val_loader = DataLoader(StrakaBubblePlottingDataset("validation", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        #     self.test_loader = DataLoader(StrakaBubblePlottingDataset("test", training_samples, model_type, t_in, t_out), batch_size=batch_size, shuffle=False, num_workers=num_workers)
