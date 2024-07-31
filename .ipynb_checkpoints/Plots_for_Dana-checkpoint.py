@@ -129,28 +129,28 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
                     else:
                         if which == "Initial Condition":
                             # scatter = ax.scatter(x_coords, z_coords, c=temp_values_t_in, cmap='gnuplot2', s=13)
-                            im = ax.imshow(temp_values_t_in.reshape(nx, nz).T, cmap='gnuplot2', origin='lower')
+                            im = ax.imshow(temp_values_t_in.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
                             ax.set_title("Input Temperatures", fontsize=20)
                             cbar = fig.colorbar(im, ax=ax)
                             cbar.set_label("Temperature anomalies [K]", fontsize=14)
                         
                         elif which == "Prediction":
                             # scatter = ax.scatter(x_coords, z_coords, c=predictions, cmap='gnuplot2', s=13)
-                            im = ax.imshow(predictions.reshape(nx, nz).T, cmap='gnuplot2', origin='lower')
+                            im = ax.imshow(predictions.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
                             ax.set_title("Predicted Temperatures " + model_type, fontsize=20)
                             cbar = fig.colorbar(im, ax=ax)
                             cbar.set_label("Temperature anomalies [K]", fontsize=14)
                         
                         elif which == "Error":
                             # scatter = ax.scatter(x_coords, z_coords, c=temp_values_t_out - predictions, cmap='seismic', s=13, vmin=-2, vmax=2)
-                            im = ax.imshow(temp_values_t_out.reshape(nx, nz).T - predictions.reshape(nx, nz).T, cmap='gnuplot2', origin='lower')
+                            im = ax.imshow(temp_values_t_out.reshape(nx, nz).T - predictions.reshape(nx, nz).T, cmap='seismic', origin='lower', vmin=-2, vmax=2)
                             ax.set_title("Absolute Error " + model_type, fontsize=20)
                             cbar = fig.colorbar(im, ax=ax)
                             cbar.set_label("Absolute Error [K]", fontsize=14)
                         
                         elif which == "Ground Truth":
                             # scatter = ax.scatter(x_coords, z_coords, c=temp_values_t_out, cmap='gnuplot2', s=13)
-                            im = ax.imshow(temp_values_t_out.reshape(nx, nz).T, cmap='gnuplot2', origin='lower')
+                            im = ax.imshow(temp_values_t_out.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
                             ax.set_title("Ground Truth Temperatures", fontsize=20)
                             cbar = fig.colorbar(im, ax=ax)
                             cbar.set_label("Temperature anomalies [K]", fontsize=14)
@@ -175,7 +175,7 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, do_
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
-# model_path = 'TrainedModels/FNO_straka_bubble_dt_60_normalized_everywhere/model.pkl'
+# model_path = 'TrainedModels/FNO_straka_bubble_0_to_900_new/model.pkl'
 model_type = model_path.split('TrainedModels/')[1][:3]
 model = torch.load(model_path, map_location=torch.device(device))
 model.eval()
@@ -186,12 +186,15 @@ dt=900
 do_fft = False
 # which = "Initial Condition"
 # which = "Ground Truth"
-which = "Prediction"
-# which = "Error"
+# which = "Prediction"
+which = "Error"
 
 # FNO dt 60:
 # lowest error: n=105
 # highest error: n=17
+
+# CNO best on 15, worst on 91
+# FNO best on 98, worst on 53
 
 
 if autoreg:
@@ -199,4 +202,4 @@ if autoreg:
 else:
     test_loader = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type=model_type, dt=dt, normalize=False), batch_size=1, shuffle=False)
 
-plot_samples(test_loader, model, n=4, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg, which=which)
+plot_samples(test_loader, model, n=15, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg, which=which)

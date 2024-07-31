@@ -19,10 +19,10 @@ def save_checkpoint(model, optimizer, scheduler, epoch, folder):
         'scheduler_state': scheduler.state_dict(),
         'epoch': epoch
     }
-    torch.save(state, os.path.join(folder, 'checkpoint.pth'))
+    torch.save(state, os.path.join(folder, 'checkpoint_CNO.pth'))
 
 def load_checkpoint(model, optimizer, scheduler, folder):
-    checkpoint = torch.load(os.path.join(folder, 'checkpoint.pth'))
+    checkpoint = torch.load(os.path.join(folder, 'checkpoint_CNO.pth'))
     model.load_state_dict(checkpoint['model_state'])
     optimizer.load_state_dict(checkpoint['optimizer_state'])
     scheduler.load_state_dict(checkpoint['scheduler_state'])
@@ -36,7 +36,7 @@ print(sys.argv)
 all_dt = True
 t_in = 0
 t_out = 900 
-dt = 900
+dt = 60
 
 if len(sys.argv) == 2:
     training_properties = {
@@ -66,7 +66,7 @@ if len(sys.argv) == 2:
         "radial_filter": 0,
     }
     which_example = sys.argv[1]
-    folder = "TrainedModels/" + "CNO_" + which_example + "_0_to_900_new"
+    folder = "TrainedModels/" + "CNO_" + which_example + "_dt_60_kinda_new"
 else:
     folder = sys.argv[1]
     training_properties = json.loads(sys.argv[2].replace("\'", "\""))
@@ -120,7 +120,7 @@ counter = 0
 start_epoch = 0
 
 # Load checkpoint if available
-checkpoint_path = os.path.join(folder, 'checkpoint.pth')
+checkpoint_path = os.path.join(folder, 'checkpoint_CNO.pth')
 if os.path.exists(checkpoint_path):
     start_epoch = load_checkpoint(model, optimizer, scheduler, folder)
     print(f"Resuming training from epoch {start_epoch}")

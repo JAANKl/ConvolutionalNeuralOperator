@@ -105,7 +105,7 @@ def plot_error_by_attributes(data_loader, model, model_type, t_in, t_out, dt, au
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load the model
-model_path = 'TrainedModels/FNO_straka_bubble_0_to_900_normalized_everywhere/model.pkl'
+model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
 # model_path = 'TrainedModels/FNO_straka_bubble_dt_60_normalized_everywhere/model.pkl'
 model_type = model_path.split('TrainedModels/')[1][:3]
 model = torch.load(model_path, map_location=device)

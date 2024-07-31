@@ -234,10 +234,12 @@ t_out=900
 dt=900
 do_fft = False
 
+# CNO best on 15, worst on 91
+# FNO best on 98, worst on 53
 
 if autoreg:
     test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type=model_type, t_in=t_in, t_out=t_out), batch_size=1, shuffle=False)
 else:
     test_loader = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type=model_type, dt=dt, normalize=False), batch_size=1, shuffle=False)
 
-plot_samples(test_loader, model, n=2, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg)
+plot_samples(test_loader, model, n=91, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg)

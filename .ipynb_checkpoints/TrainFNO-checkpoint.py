@@ -66,7 +66,7 @@ else:
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #device = "cpu"
-writer = SummaryWriter(log_dir=folder)
+# writer = SummaryWriter(log_dir=folder)
 
 learning_rate = training_properties["learning_rate"]
 epochs = training_properties["epochs"]
@@ -181,7 +181,7 @@ for epoch in range(epochs):
                 best_model_testing_error = test_relative_l2
                 best_model = copy.deepcopy(model)
                 torch.save(best_model, folder + "/model.pkl")
-                writer.add_scalar("val_loss/Best Relative Testing Error", best_model_testing_error, epoch)
+                # writer.add_scalar("val_loss/Best Relative Testing Error", best_model_testing_error, epoch)
                 counter = 0
             else:
                 counter +=1

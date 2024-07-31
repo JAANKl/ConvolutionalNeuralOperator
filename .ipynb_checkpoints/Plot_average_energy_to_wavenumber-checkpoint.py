@@ -116,38 +116,58 @@ def process_model(data_loader, model, device, model_type, t_in, t_out, dt, autor
 
     average_amplitude_fft = sum_amplitude_fft / n_samples
     average_predicted_amplitude_fft = sum_predicted_amplitude_fft / n_samples
+
     return average_amplitude_fft, average_predicted_amplitude_fft, nx, nz
 
-def plot_comparison(true_fft, predicted_fft_cno, predicted_fft_fno, nx, nz):
-    fig, axs = plt.subplots(1, 3, figsize=(20, 8), dpi=200)
+# TODO, absolute value first, then average
+# Also for variance and mean calculation: make sure to take either absolute value first or abs **2 instead of just **2
+# FT then abs, then average
 
-    c1 = axs[0].imshow(np.abs(true_fft), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
-    axs[0].set_title("Ground Truth", fontsize=20)
-    axs[0].set_xlabel(r'$k_x$', fontsize=14)
-    axs[0].set_ylabel(r'$k_z$', fontsize=14)
-    # fig.colorbar(c1, ax=axs[0])
-
-    c2 = axs[1].imshow(np.abs(predicted_fft_cno), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
-    axs[1].set_title("CNO", fontsize=20)
-    axs[1].set_xlabel(r'$k_x$', fontsize=14)
-    # axs[1].set_ylabel(r'$k_z$', fontsize=14)
-    # fig.colorbar(c2, ax=axs[1])
-
-    c3 = axs[2].imshow(np.abs(predicted_fft_fno), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
-    axs[2].set_title("FNO", fontsize=20)
-    axs[2].set_xlabel(r'$k_x$', fontsize=14)
-    # axs[2].set_ylabel(r'$k_z$', fontsize=14)
-    # fig.colorbar(c3, ax=axs[2])
-
-    fig.subplots_adjust(left=0.05, right=0.85, wspace=0.1)
+def compute_energy_spectrum(amplitude_fft, nx, nz):
+    # Compute the energy spectrum
+    energy_spectrum = np.abs(amplitude_fft)**2
     
-    cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
-    fig.colorbar(c3, cax=cbar_ax)  # Use the last image's color mapping
+    # Compute wavenumbers
+    kx = np.fft.fftshift(np.fft.fftfreq(nx))
+    kz = np.fft.fftshift(np.fft.fftfreq(nz))
+    kx, kz = np.meshgrid(kx, kz)
+    k = np.sqrt(kx**2 + kz**2)
     
-    # plt.tight_layout()
+    return energy_spectrum, k
+
+
+def plot_energy_spectrum(energy_spectrum_true, energy_spectrum_cno, energy_spectrum_fno, k):
+    # Flatten the arrays
+    k = k.flatten()
+    energy_spectrum_true = energy_spectrum_true.flatten()
+    energy_spectrum_cno = energy_spectrum_cno.flatten()
+    energy_spectrum_fno = energy_spectrum_fno.flatten()
+    
+    
+    # Log bins for wavenumbers
+    bins = np.logspace(np.log10(np.min(k[k > 0])), np.log10(np.max(k)), num=50)
+    
+    # Digitize the wavenumbers
+    bin_indices = np.digitize(k, bins)
+    
+    # Compute the average energy for each bin
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    energy_true_binned = np.array([energy_spectrum_true[bin_indices == i].mean() if np.any(bin_indices == i) else None for i in range(1, len(bins))])
+    energy_cno_binned = np.array([energy_spectrum_cno[bin_indices == i].mean() if np.any(bin_indices == i) else None for i in range(1, len(bins))])
+    energy_fno_binned = np.array([energy_spectrum_fno[bin_indices == i].mean() if np.any(bin_indices == i) else None for i in range(1, len(bins))])
+    
+    
+    plt.figure(figsize=(8, 6))
+    plt.loglog(bin_centers, energy_cno_binned, label="CNO", color="blue")
+    plt.loglog(bin_centers, energy_fno_binned, label="FNO", color="red")
+    plt.loglog(bin_centers, energy_true_binned, label="True", color="black")
+    plt.xlabel('Wavenumber k')
+    plt.ylabel('E(k)')
+    plt.title('Energy Spectrum')
+    plt.legend()
     plt.show()
-    plt.savefig('fft_average_amplitude_plot_comparison.png')
-    print("Finished plotting FFT of average amplitude")
+    plt.savefig('fft_average_energy_vs_wavenumber.png')
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -173,8 +193,15 @@ else:
     test_loader_cno = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type="CNO", dt=dt, normalize=False), batch_size=1, shuffle=False)
     test_loader_fno = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type="FNO", dt=dt, normalize=False), batch_size=1, shuffle=False)
 
-true_fft_cno, predicted_fft_cno, nx_cno, nz_cno = process_model(test_loader_cno, model_cno, device, "CNO", t_in, t_out, dt, autoreg=autoreg)
-true_fft_fno, predicted_fft_fno, nx_fno, nz_fno = process_model(test_loader_fno, model_fno, device, "FNO", t_in, t_out, dt, autoreg=autoreg)
+true_fft, predicted_fft_cno, nx, nz = process_model(test_loader_cno, model_cno, device, "CNO", t_in, t_out, dt, autoreg=autoreg)
+_, predicted_fft_fno, _, _ = process_model(test_loader_fno, model_fno, device, "FNO", t_in, t_out, dt, autoreg=autoreg)
+print("Finished processing models")
 
-# We assume that nx_cno == nx_fno and nz_cno == nz_fno for simplicity
-plot_comparison(true_fft_cno, predicted_fft_cno, predicted_fft_fno, nx_cno, nz_cno)
+energy_spectrum_true, k = compute_energy_spectrum(true_fft, nx, nz)
+energy_spectrum_cno, _ = compute_energy_spectrum(predicted_fft_cno, nx, nz)
+energy_spectrum_fno, _ = compute_energy_spectrum(predicted_fft_fno, nx, nz)
+
+plot_energy_spectrum(energy_spectrum_true, energy_spectrum_cno, energy_spectrum_fno, k)
+print("Finished plotting")
+
+
