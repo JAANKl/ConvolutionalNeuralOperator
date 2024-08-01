@@ -15,7 +15,7 @@ from Dataloaders import StrakaBubble
 all_dt = True
 t_in = 0
 t_out = 900 
-dt = 900
+dt = 60
 
 def save_checkpoint(model, optimizer, scheduler, epoch, folder):
     state = {
@@ -56,7 +56,7 @@ if len(sys.argv) == 2:
     }
     
     which_example = sys.argv[1]
-    folder = "TrainedModels/" + "FNO_" + which_example + "_0_to_900_the_one"
+    folder = "TrainedModels/" + "FNO_" + which_example + "_dt_60_new"
 else:
     folder = sys.argv[1]
     training_properties = json.loads(sys.argv[2].replace("\'", "\""))

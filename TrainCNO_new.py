@@ -66,7 +66,7 @@ if len(sys.argv) == 2:
         "radial_filter": 0,
     }
     which_example = sys.argv[1]
-    folder = "TrainedModels/" + "CNO_" + which_example + "_dt_60_kinda_new"
+    folder = "TrainedModels/" + "CNO_" + which_example + "_dt_60_new"
 else:
     folder = sys.argv[1]
     training_properties = json.loads(sys.argv[2].replace("\'", "\""))

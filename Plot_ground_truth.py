@@ -48,7 +48,7 @@ def plot_comparison_true_data(file_path, index, timesteps, resolution=256):
 
 # Example usage
 file_path = "/cluster/work/math/camlab-data/data_dana/4-Straka_vdIC_uvDT_timeseries_1024samples/samples/data/sample_"
-index = 0  # Example index, replace with your actual index
+index = 994  # Example index, replace with your actual index
 timesteps = [0, 300, 600, 900]  # Example timesteps
 resolution = 256  # Desired resolution
 

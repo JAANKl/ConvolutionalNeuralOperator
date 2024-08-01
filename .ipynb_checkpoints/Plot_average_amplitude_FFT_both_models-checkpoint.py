@@ -152,19 +152,21 @@ def plot_comparison(true_fft, predicted_fft_cno, predicted_fft_fno, nx, nz):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load CNO model
-model_cno_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
+# model_cno_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
+model_cno_path = 'TrainedModels/CNO_straka_bubble_dt_60_new/model.pkl'
 model_cno = torch.load(model_cno_path, map_location=torch.device(device))
 model_cno.eval()
 
 # Load FNO model
-model_fno_path = 'TrainedModels/FNO_straka_bubble_0_to_900_new/model.pkl'
+# model_fno_path = 'TrainedModels/FNO_straka_bubble_0_to_900_new/model.pkl'
+model_fno_path = 'TrainedModels/FNO_straka_bubble_dt_60_new/model.pkl'
 model_fno = torch.load(model_fno_path, map_location=torch.device(device))
 model_fno.eval()
 
-autoreg = False
+autoreg = True
 t_in = 0
 t_out = 900
-dt = 900
+dt = 60
 
 if autoreg:
     test_loader_cno = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type="CNO", t_in=t_in, t_out=t_out), batch_size=1, shuffle=False)

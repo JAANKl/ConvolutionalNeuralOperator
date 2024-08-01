@@ -99,28 +99,28 @@ def plot_error_by_attributes(data_loader, model, model_type, t_in, t_out, dt, au
     plt.ylabel('Diffusivity')
     plt.grid(True)
     plt.show()
-    plt.savefig(f'{model_type}_Viscosity_Diffusivity_to_Error_Plot.png')
+    plt.savefig(f'{model_type}_Viscosity_Diffusivity_to_Error_Plot_Autoreg.png')
 
 # Configure the device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load the model
-model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
-# model_path = 'TrainedModels/FNO_straka_bubble_dt_60_normalized_everywhere/model.pkl'
+# model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
+model_path = 'TrainedModels/FNO_straka_bubble_dt_60_new/model.pkl'
 model_type = model_path.split('TrainedModels/')[1][:3]
 model = torch.load(model_path, map_location=device)
 model.eval()
 autoreg = True
 t_in=0
 t_out=900
-dt=900
+dt=60
 
 if autoreg:
     test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type=model_type, t_in=t_in, t_out=t_out), batch_size=1, shuffle=False)
 else:
     test_loader = DataLoader(StrakaBubbleDataset(which="test", training_samples=128, model_type=model_type, dt=dt, normalize=False), batch_size=1, shuffle=False)
 
-csv_filename = f'{model_type}_Viscosity_Diffusivity_Errors.csv'
+csv_filename = f'{model_type}_Viscosity_Diffusivity_Errors_Autoreg.csv'
 
 # Run the error plotting function
 plot_error_by_attributes(test_loader, model, model_type, t_in, t_out, dt, autoreg, csv_filename, device)
