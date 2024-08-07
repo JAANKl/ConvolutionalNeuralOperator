@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from random import randint
 import pickle
 
-from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset, normalize_data
+from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset
 
 min_data = -28.0
 max_data = 0.0
@@ -114,17 +114,18 @@ def plot_comparison(true_fft, predicted_fft, nx, nz):
 
     c1 = axs[0].imshow(np.abs(true_fft), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
     axs[0].set_title("Ground Truth", fontsize=20)
-    axs[0].set_xlabel(r'$k_x$', fontsize=14)
-    axs[0].set_ylabel(r'$k_z$', fontsize=14)
+    axs[0].set_xlabel(r'$k_x$', fontsize=20)
+    axs[0].set_ylabel(r'$k_z$', fontsize=20)
 
     c2 = axs[1].imshow(np.abs(predicted_fft), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
     axs[1].set_title("FNO", fontsize=20)
-    axs[1].set_xlabel(r'$k_x$', fontsize=14)
+    axs[1].set_xlabel(r'$k_x$', fontsize=20)
 
     fig.subplots_adjust(left=0.05, right=0.85, wspace=0.1)
     
     cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
-    fig.colorbar(c2, cax=cbar_ax)  # Use the last image's color mapping
+    cbar = fig.colorbar(c2, cax=cbar_ax)
+    cbar.set_label('Amplitude [K]', fontsize=20)
     
     plt.show()
     plt.savefig('fft_variance_amplitude_plot.png')

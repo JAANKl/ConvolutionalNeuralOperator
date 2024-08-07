@@ -19,63 +19,26 @@ random.seed(0)
 
 #------------------------------------------------------------------------------
 
-# Some functions needed for loading the Navier-Stokes data
-
-import scipy.fft as fft
-
-def samples_fft(u):
-    return fft.fft2(u, norm='forward', workers=-1)
-
-
-def samples_ifft(u_hat):
-    return fft.ifft2(u_hat, norm='forward', workers=-1).real
-
-
-def downsample(u, N):
-    N_old = u.shape[-2]
-    freqs = fft.fftfreq(N_old, d=1 / N_old)
-    sel = np.logical_and(freqs >= -N / 2, freqs <= N / 2 - 1)
-    u_hat = samples_fft(u)
-    u_hat_down = u_hat[:, :, sel, :][:, :, :, sel]
-    u_down = samples_ifft(u_hat_down)
-    return u_down
-
 # For Straka Bubble:
 
 def resize_and_downsample(u, original_shape=(512, 128), target_shape=(256, 256)):
-    """
-    Resize and downsample the input tensor to a new shape using bilinear interpolation.
-    Args:
-    - u (torch.Tensor): The input tensor to be resized. Expected to have shape (H, W).
-    - original_shape (tuple): The original shape of the input tensor (H, W).
-    - target_shape (tuple): The desired shape (H, W) after resizing.
-    Returns:
-    - torch.Tensor: The resized tensor with shape (1, H, W) where 1 is the channel dimension.
-    """
-    # Ensure the input tensor is a float tensor (required for interpolate)
-    if not u.is_floating_point():
-        u = u.float()
     
-    # Reshape the input to add a channel dimension (C=1)
-    if u.dim() == 2:
-        u = u.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
-    elif u.dim() == 3:
-        u = u.unsqueeze(1)  # Add a channel dimension
+    # if not u.is_floating_point():
+    #     u = u.float()
 
-    # Use interpolate to resize
+    u = u.unsqueeze(0).unsqueeze(0)
     resized_u = F.interpolate(u, size=target_shape, mode='bilinear', align_corners=False)
-    # Remove batch and channel dimensions for output
     resized_u = resized_u.squeeze(0).squeeze(0)
     
     return resized_u
 
 
-def normalize_data(inputs, labels):
-    for i in [0,1,4]:
-        inputs[i, :, :] = (inputs[i, :, :] - inputs[i, :, :].min())/(inputs[i, :, :].max() - inputs[i, :, :].min())
-    labels = (labels - labels.min())/(labels.max() - labels.min())
+# def normalize_data(inputs, labels):
+#     for i in [0,1,4]:
+#         inputs[i, :, :] = (inputs[i, :, :] - inputs[i, :, :].min())/(inputs[i, :, :].max() - inputs[i, :, :].min())
+#     labels = (labels - labels.min())/(labels.max() - labels.min())
     
-    return inputs, labels
+#     return inputs, labels
 
 #------------------------------------------------------------------------------
 

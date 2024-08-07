@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from random import randint
 import pickle
 
-from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset, normalize_data
+from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset
 
 min_data = -28.0
 max_data = 0.0
@@ -87,37 +87,45 @@ def plot_comparison(x_coords, z_coords, temp_values_t_out, cno_predictions, fno_
         fno_predictions = compute_fft(fno_predictions)
 
         axs[0].imshow(temp_values_t_out.T, cmap='seismic', origin='lower', extent=[-nx//2, nx//2, -nz//2, nz//2], norm=LogNorm())
-        axs[0].set_title("FFT of Ground Truth Temperatures", fontsize=20)
-        axs[0].set_xlabel('k_x')
-        axs[0].set_ylabel('k_z')
+        axs[0].set_title("Ground Truth", fontsize=20)
+        axs[0].set_xlabel('$k_x$', fontsize=20)
+        axs[0].set_ylabel('$k_z$', fontsize=20)
 
         axs[1].imshow(cno_predictions.T, cmap='seismic', origin='lower', extent=[-nx//2, nx//2, -nz//2, nz//2], norm=LogNorm())
-        axs[1].set_title("FFT of Predicted Temperatures CNO", fontsize=20)
-        axs[1].set_xlabel('k_x')
+        axs[1].set_title("CNO", fontsize=20)
+        axs[1].set_xlabel('$k_x$', fontsize=20)
 
         c3 = axs[2].imshow(fno_predictions.T, cmap='seismic', origin='lower', extent=[-nx//2, nx//2, -nz//2, nz//2], norm=LogNorm())
-        axs[2].set_title("FFT of Predicted Temperatures FNO", fontsize=20)
-        axs[2].set_xlabel('k_x')
+        axs[2].set_title("FNO", fontsize=20)
+        axs[2].set_xlabel('$k_x$', fontsize=20)
     else:
-        axs[0].imshow(temp_values_t_out.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
-        axs[0].set_title("Ground Truth Temperatures", fontsize=20)
-        axs[0].set_ylabel('z [km]', fontsize=14)
+        extent = [0, 25575, 0, 6400]
 
-        axs[1].imshow(cno_predictions.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
-        axs[1].set_title("Predicted Temperatures CNO", fontsize=20)
+        aspect_ratio = (extent[1] - extent[0]) / (extent[3] - extent[2])
+        
+        axs[0].imshow(temp_values_t_out.reshape(nx, nz).T, cmap='coolwarm', origin='lower', extent=extent, aspect=aspect_ratio)
+        axs[0].set_title("Ground Truth", fontsize=20)
+        axs[0].set_ylabel('z [km]', fontsize=20)
 
-        c3 = axs[2].imshow(fno_predictions.reshape(nx, nz).T, cmap='coolwarm', origin='lower')
-        axs[2].set_title("Predicted Temperatures FNO", fontsize=20)
+        axs[1].imshow(cno_predictions.reshape(nx, nz).T, cmap='coolwarm', origin='lower', extent=extent, aspect=aspect_ratio)
+        axs[1].set_title("CNO", fontsize=20)
+
+        c3 = axs[2].imshow(fno_predictions.reshape(nx, nz).T, cmap='coolwarm', origin='lower', extent=extent, aspect=aspect_ratio)
+        axs[2].set_title("FNO", fontsize=20)
 
         for ax in axs:
             m2km = lambda x, _: f'{x/1000:g}'
             ax.xaxis.set_major_formatter(m2km)
             ax.yaxis.set_major_formatter(m2km)
-            ax.set_xlabel('x [km]', fontsize=14)
+            ax.set_xlabel('x [km]', fontsize=20)
+            ax.set_xlim(0, 25575)
+            ax.set_ylim(0, 6400)
+            # ax.set_aspect('auto')
 
     fig.subplots_adjust(left=0.05, right=0.85, wspace=0.1)
     cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])
-    fig.colorbar(c3, cax=cbar_ax)
+    cbar = fig.colorbar(c3, cax=cbar_ax)
+    cbar.set_label('Amplitude [K]' if do_fft else 'Termperature Pertubation [K]', fontsize=20)
 
     plt.show()
     plt.savefig('output_comparison.png' if not do_fft else 'output_comparison_fft.png')
@@ -126,23 +134,23 @@ def plot_comparison(x_coords, z_coords, temp_values_t_out, cno_predictions, fno_
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load CNO model
-# cno_model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
-cno_model_path = 'TrainedModels/CNO_straka_bubble_dt_60_new/model.pkl'
+cno_model_path = 'TrainedModels/CNO_straka_bubble_0_to_900_new/model.pkl'
+# cno_model_path = 'TrainedModels/CNO_straka_bubble_dt_60_new/model.pkl'
 cno_model = torch.load(cno_model_path, map_location=torch.device(device))
 cno_model.eval()
 
 # Load FNO model
-# fno_model_path = 'TrainedModels/FNO_straka_bubble_0_to_900_new/model.pkl'
-fno_model_path = 'TrainedModels/FNO_straka_bubble_dt_60_new/model.pkl'
+fno_model_path = 'TrainedModels/FNO_straka_bubble_0_to_900_new/model.pkl'
+# fno_model_path = 'TrainedModels/FNO_straka_bubble_dt_60_new/model.pkl'
 fno_model = torch.load(fno_model_path, map_location=torch.device(device))
 fno_model.eval()
 
 autoreg = True
 t_in = 0
 t_out = 900
-dt = 60
+dt = 900
 do_fft = True
-n = 0
+n = 53
 
 # CNO best on 15, worst on 91
 # FNO best on 98, worst on 53

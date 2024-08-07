@@ -139,20 +139,21 @@ def plot_comparison(true_fft, predicted_fft_cno, predicted_fft_fno, nx, nz):
 
     c1 = axs[0].imshow(np.abs(true_fft), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
     axs[0].set_title("Ground Truth", fontsize=20)
-    axs[0].set_xlabel(r'$k_x$', fontsize=14)
-    axs[0].set_ylabel(r'$k_z$', fontsize=14)
+    axs[0].set_xlabel(r'$k_x$', fontsize=20)
+    axs[0].set_ylabel(r'$k_z$', fontsize=20)
 
     c2 = axs[1].imshow(np.abs(predicted_fft_cno), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
     axs[1].set_title("CNO", fontsize=20)
-    axs[1].set_xlabel(r'$k_x$', fontsize=14)
+    axs[1].set_xlabel(r'$k_x$', fontsize=20)
 
     c3 = axs[2].imshow(np.abs(predicted_fft_fno), cmap='seismic', interpolation='nearest', extent=[-nx // 2, nx // 2, -nz // 2, nz // 2], norm=LogNorm())
     axs[2].set_title("FNO", fontsize=20)
-    axs[2].set_xlabel(r'$k_x$', fontsize=14)
+    axs[2].set_xlabel(r'$k_x$', fontsize=20)
 
     fig.subplots_adjust(left=0.05, right=0.85, wspace=0.1)
     cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])
-    fig.colorbar(c3, cax=cbar_ax)
+    cbar = fig.colorbar(c3, cax=cbar_ax)
+    cbar.set_label('Amplitude [K]', fontsize=20)
 
     plt.show()
     plt.savefig('fft_variance_comparison.png')

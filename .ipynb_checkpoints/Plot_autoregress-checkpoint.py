@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset, normalize_data
+from Dataloaders import StrakaBubble, StrakaBubbleDataset, StrakaBubblePlottingDataset
 
 min_data = -28.0
 max_data = 0.0
@@ -70,27 +70,32 @@ def plot_samples(data_loader, model, n, device, model_type, t_in, t_out, dt, aut
 def plot_comparison(true_data, predictions, nx, nz):
     fig, axs = plt.subplots(2, 3, figsize=(20, 12), dpi=200)
 
+    extent = [0, 25575, 0, 6400]
+    aspect_ratio = (extent[1] - extent[0]) / (extent[3] - extent[2])
+
     for i, t in enumerate([300, 600, 900]):
         # True data plots
-        axs[0, i].imshow(true_data[t].reshape(nx, nz).T, cmap='coolwarm', origin='lower')
+        axs[0, i].imshow(true_data[t].reshape(nx, nz).T, cmap='coolwarm', origin='lower', extent=extent, aspect=aspect_ratio)
         axs[0, i].set_title(f"Ground Truth t={t} [s]", fontsize=20)
-        axs[0, i].set_ylabel('z [km]', fontsize=14)
+        axs[0, 0].set_ylabel('z [km]', fontsize=20)
         m2km = lambda x, _: f'{x/1000:g}'
         axs[0, i].xaxis.set_major_formatter(m2km)
         axs[0, i].yaxis.set_major_formatter(m2km)
-        axs[0, i].set_xlabel('x [km]', fontsize=14)
+        axs[0, i].set_xlabel('x [km]', fontsize=20)
 
         # Prediction plots
         pred_key = f"pred_{(i + 1) * 5}"
-        axs[1, i].imshow(predictions[t].reshape(nx, nz).T, cmap='coolwarm', origin='lower')
+        axs[1, i].imshow(predictions[t].reshape(nx, nz).T, cmap='coolwarm', origin='lower', extent=extent, aspect=aspect_ratio)
         axs[1, i].set_title(f"FNO t={t} [s]", fontsize=20)
+        axs[1, 0].set_ylabel('z [km]', fontsize=20)
         axs[1, i].xaxis.set_major_formatter(m2km)
         axs[1, i].yaxis.set_major_formatter(m2km)
-        axs[1, i].set_xlabel('x [km]', fontsize=14)
+        axs[1, i].set_xlabel('x [km]', fontsize=20)
     
     fig.subplots_adjust(left=0.05, right=0.85, wspace=0.1, hspace=0.3)
     cbar_ax = fig.add_axes([0.9, 0.15, 0.02, 0.7])
-    fig.colorbar(axs[0, 0].images[0], cax=cbar_ax)
+    cbar = fig.colorbar(axs[0, 0].images[0], cax=cbar_ax)
+    cbar.set_label('Termperature Pertubation [K]', fontsize=20)
     
     plt.show()
     plt.savefig('output_comparison_timesteps.png')

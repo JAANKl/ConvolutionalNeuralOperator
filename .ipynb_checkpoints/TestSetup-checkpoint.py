@@ -427,86 +427,86 @@
 # plot_samples(test_loader, model, n=2, device=device, model_type=model_type, t_in=t_in, t_out=t_out, dt=dt, do_fft=do_fft, cmap='coolwarm', autoreg=autoreg, which=which)
 #######################################
 
-import torch
-from torch.utils.data import DataLoader, Dataset
-from Dataloaders import resize_and_downsample
-import xarray as xr
-import numpy as np
+# import torch
+# from torch.utils.data import DataLoader, Dataset
+# from Dataloaders import resize_and_downsample
+# import xarray as xr
+# import numpy as np
 
-# Minimal dataset class for testing
-class StrakaBubblePlottingDataset(Dataset):
-    def __init__(self, which, training_samples, model_type, t_in=0, t_out=900):
-        self.model_type = model_type
-        self.t_in = t_in
-        self.t_out = t_out
-        self.max_time = 900
-        self.resolution = 256
-        assert self.t_in in 60 * np.array(range(16))
-        assert self.t_out in 60 * np.array(range(16))
-        assert self.t_in < self.t_out
+# # Minimal dataset class for testing
+# class StrakaBubblePlottingDataset(Dataset):
+#     def __init__(self, which, training_samples, model_type, t_in=0, t_out=900):
+#         self.model_type = model_type
+#         self.t_in = t_in
+#         self.t_out = t_out
+#         self.max_time = 900
+#         self.resolution = 256
+#         assert self.t_in in 60 * np.array(range(16))
+#         assert self.t_out in 60 * np.array(range(16))
+#         assert self.t_in < self.t_out
         
-        #The file:
-        self.file_data = "/cluster/work/math/camlab-data/data_dana/4-Straka_vdIC_uvDT_timeseries_1024samples/samples/data/sample_"
-        self.N_max = 1024
-        self.n_val  = 128
-        self.n_test = 128
+#         #The file:
+#         self.file_data = "/cluster/work/math/camlab-data/data_dana/4-Straka_vdIC_uvDT_timeseries_1024samples/samples/data/sample_"
+#         self.N_max = 1024
+#         self.n_val  = 128
+#         self.n_test = 128
         
-        if which == "training":
-            self.length = training_samples
-            self.start = 0
-        elif which == "validation":
-            self.length = self.n_val
-            self.start = self.N_max - self.n_val - self.n_test
-        elif which == "test":
-            self.length = self.n_test
-            self.start = self.N_max  - self.n_test
+#         if which == "training":
+#             self.length = training_samples
+#             self.start = 0
+#         elif which == "validation":
+#             self.length = self.n_val
+#             self.start = self.N_max - self.n_val - self.n_test
+#         elif which == "test":
+#             self.length = self.n_test
+#             self.start = self.N_max  - self.n_test
         
-    def __len__(self):
-        return self.length
+#     def __len__(self):
+#         return self.length
 
-    def __getitem__(self, index):
-        ds = xr.open_mfdataset(self.file_data + str(index + self.start) + "_fields.nc")
-        temp_values_t_in = ds['temperature_anomaly'].isel(t=self.t_in//60).values
-        temp_values_t_out = ds['temperature_anomaly'].isel(t=self.t_out//60).values
-        x_values = ds.coords['x'].values
-        z_values = ds.coords['z'].values
-        x_grid, z_grid = np.meshgrid(x_values, z_values, indexing='ij')
-        viscosity = ds.attrs["VISCOSITY"]
-        diffusivity = ds.attrs["DIFFUSIVITY"]
-        viscosity = viscosity * np.ones_like(x_grid)
-        diffusivity = diffusivity * np.ones_like(x_grid)
+#     def __getitem__(self, index):
+#         ds = xr.open_mfdataset(self.file_data + str(index + self.start) + "_fields.nc")
+#         temp_values_t_in = ds['temperature_anomaly'].isel(t=self.t_in//60).values
+#         temp_values_t_out = ds['temperature_anomaly'].isel(t=self.t_out//60).values
+#         x_values = ds.coords['x'].values
+#         z_values = ds.coords['z'].values
+#         x_grid, z_grid = np.meshgrid(x_values, z_values, indexing='ij')
+#         viscosity = ds.attrs["VISCOSITY"]
+#         diffusivity = ds.attrs["DIFFUSIVITY"]
+#         viscosity = viscosity * np.ones_like(x_grid)
+#         diffusivity = diffusivity * np.ones_like(x_grid)
 
-        # Convert to PyTorch tensors
-        inputs = torch.tensor(np.stack([x_grid, z_grid, viscosity, diffusivity, temp_values_t_in], axis=0), dtype=torch.float32)
-        labels = torch.tensor(temp_values_t_out, dtype=torch.float32)
+#         # Convert to PyTorch tensors
+#         inputs = torch.tensor(np.stack([x_grid, z_grid, viscosity, diffusivity, temp_values_t_in], axis=0), dtype=torch.float32)
+#         labels = torch.tensor(temp_values_t_out, dtype=torch.float32)
 
-        # Resize and downsample
-        inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (self.resolution, self.resolution)) for i in range(inputs.shape[0])])
-        labels = resize_and_downsample(labels.squeeze(0), (512, 128), (self.resolution, self.resolution))
+#         # Resize and downsample
+#         inputs = torch.stack([resize_and_downsample(inputs[i, :, :], (512, 128), (self.resolution, self.resolution)) for i in range(inputs.shape[0])])
+#         labels = resize_and_downsample(labels.squeeze(0), (512, 128), (self.resolution, self.resolution))
 
-        if self.model_type == "FNO":
-            inputs = inputs.permute(1, 2, 0)
-            labels = labels.unsqueeze(-1)
-        elif self.model_type == "CNO":
-            labels = labels.unsqueeze(0)
-        else:
-            raise NotImplementedError("Only FNO and CNO supported.")
+#         if self.model_type == "FNO":
+#             inputs = inputs.permute(1, 2, 0)
+#             labels = labels.unsqueeze(-1)
+#         elif self.model_type == "CNO":
+#             labels = labels.unsqueeze(0)
+#         else:
+#             raise NotImplementedError("Only FNO and CNO supported.")
 
-        return [(inputs, labels)]
+#         return [(inputs, labels)]
 
-# Simplified function to just iterate through DataLoader
-def test_dataloader_iteration(data_loader):
-    for i, batch in enumerate(data_loader):
-        print(f"Currently on batch {i}")
-        print(f"Batch {i}: {[b for b in batch]}")
-        if i > 3:  # Limit the number of batches printed for brevity
-            break
+# # Simplified function to just iterate through DataLoader
+# def test_dataloader_iteration(data_loader):
+#     for i, batch in enumerate(data_loader):
+#         print(f"Currently on batch {i}")
+#         print(f"Batch {i}: {[b for b in batch]}")
+#         if i > 3:  # Limit the number of batches printed for brevity
+#             break
 
-# Initialize DataLoader
-test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type="CNO", t_in=0, t_out=900), batch_size=16, shuffle=False)
+# # Initialize DataLoader
+# test_loader = DataLoader(StrakaBubblePlottingDataset(which="test", training_samples=128, model_type="CNO", t_in=0, t_out=900), batch_size=16, shuffle=False)
 
-# Test DataLoader iteration
-test_dataloader_iteration(test_loader)
+# # Test DataLoader iteration
+# test_dataloader_iteration(test_loader)
 
 
 # import torch
@@ -595,6 +595,38 @@ test_dataloader_iteration(test_loader)
 
 # # Test DataLoader iteration
 # dataloader_iteration(test_loader)
+
+
+import xarray as xr
+import numpy as np
+import matplotlib.pyplot as plt
+
+def load_and_plot_data(file_path, t_in_index, t_out_index):
+    # Load the dataset
+    ds = xr.open_mfdataset(file_path + "1023" + "_fields.nc")
+    
+    # Extract temperatures at specified time indices
+    temp_values_t_in = ds['temperature_anomaly'].isel(t=t_in_index).values
+    temp_values_t_out = ds['temperature_anomaly'].isel(t=t_out_index).values
+    
+    # Extract spatial coordinates
+    x_values = ds.coords['x'].values
+    z_values = ds.coords['z'].values
+    
+    # Find the ranges of x and z coordinates
+    x_min, x_max = x_values.min(), x_values.max()
+    z_min, z_max = z_values.min(), z_values.max()
+    
+    print(f"Range of x values: {x_min} to {x_max}")
+    print(f"Range of z values: {z_min} to {z_max}")
+
+# Parameters
+file_path = "/cluster/work/math/camlab-data/data_dana/4-Straka_vdIC_uvDT_timeseries_1024samples/samples/data/sample_"  # Update this path
+t_in_index = 0  # Example time index for input
+t_out_index = 15  # Example time index for output
+
+load_and_plot_data(file_path, t_in_index, t_out_index)
+
 
 
 
